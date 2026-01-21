@@ -19,7 +19,17 @@ DELAY_BETWEEN_MESSAGES = (10, 20)
 def initialize_driver():
     """Initializes the Chrome WebDriver."""
     options = webdriver.ChromeOptions()
-    # options.add_argument("--headless") # Cannot use headless for WhatsApp Web auth
+    
+    # Check if we are running in a container/cloud (Environment Variable)
+    if os.environ.get("HEADLESS_MODE") == "true":
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        
+        # User Agent is vital for Headless WhatsApp to work (prevents some blocks)
+        options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
+    
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     return driver
