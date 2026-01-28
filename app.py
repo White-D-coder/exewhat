@@ -46,6 +46,10 @@ if uploaded_file is not None:
         default_email_index = 0
         
         for i, col in enumerate(all_columns):
+            # Skip status columns for mapping
+            if col in ['Status', 'Email_Status']:
+                continue
+                
             if "name" in col.lower(): default_name_index = i
             if "mobile" in col.lower() or "phone" in col.lower() or "contact" in col.lower(): default_phone_index = i
             if "email" in col.lower() or "mail" in col.lower(): default_email_index = i
@@ -121,7 +125,7 @@ if uploaded_file is not None:
             email_subject = st.text_input("Email Subject", value="Hello from Us!")
             email_body = st.text_area("Email Body", value="Hi {Name},\n\nWe would love to connect with you.")
             
-            with st.expander("⚙️ Email SMTP Configuration"):
+            with st.expander("⚙️ Email SMTP Configuration", expanded=True):
                 e_server = st.text_input("SMTP Server", value="smtp.gmail.com")
                 e_port = st.number_input("SMTP Port", value=465)
                 e_user = st.text_input("Sender Email", placeholder="your_email@gmail.com")
@@ -133,6 +137,17 @@ if uploaded_file is not None:
                     "sender_email": e_user,
                     "password": e_pass
                 }
+                
+                if st.button("Test Credentials"):
+                    if not (e_user and e_pass):
+                        st.error("Please enter email and password first.")
+                    else:
+                        with st.spinner("Testing connection..."):
+                            success, msg = main.send_email(smtp_settings, e_user, "Test Email", "Connection Successful!")
+                            if success:
+                                st.success(f"✅ Success! Check your inbox ({e_user}).")
+                            else:
+                                st.error(f"❌ Failed: {msg}")
 
         # Safety Settings
         if enable_wa:
