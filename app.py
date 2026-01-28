@@ -65,6 +65,17 @@ if uploaded_file is not None:
         with chk_c2:
             enable_email = st.checkbox("Send Email", value=False)
 
+        # Row Selection
+        st.subheader("Filter Data")
+        row_c1, row_c2 = st.columns(2)
+        with row_c1:
+            start_index = st.number_input("Start Row (0-indexed)", min_value=0, max_value=total-1, value=0)
+        with row_c2:
+            end_index = st.number_input("End Row", min_value=1, max_value=total, value=total)
+            
+        # Country Code
+        country_code = st.text_input("Default Country Code (e.g., 91)", value="", help="Will be prefixed to phone numbers if not present.")
+
         st.subheader("Message Configuration")
         
         tab1, tab2 = st.tabs(["💬 WhatsApp", "📧 Email"])
@@ -109,6 +120,10 @@ if uploaded_file is not None:
         else:
             min_d, max_d, batch_size, batch_pause = 0, 0, 0, 0
 
+        # Filter DataFrame based on selection
+        df_subset = df.iloc[start_index:end_index].copy()
+        subset_pending = len(df_subset) # Just count rows for now, status check handles skipping
+
         if st.button("🚀 Start Automation"):
             if enable_email and not (e_user and e_pass):
                 st.error("Please provide Email Credentials.")
@@ -120,16 +135,24 @@ if uploaded_file is not None:
                 
                 processed_count = 0
                 # Approximate total operations
-                total_ops = 0
-                if enable_wa: total_ops += (total - wa_sent)
-                if enable_email: total_ops += (total - email_sent)
+                total_ops = len(df_subset) * (1 if enable_wa else 0 + 1 if enable_email else 0)
                 if total_ops == 0: total_ops = 1
                 
                 current_op = 0
+                
+                # Apply Country Code if needed
+                if country_code:
+                     # Helper to add code
+                     def add_code(phone):
+                         p = str(phone).strip().replace('+', '')
+                         if not p.startswith(country_code):
+                             return f"{country_code}{p}"
+                         return p
+                     df_subset[phone_col] = df_subset[phone_col].apply(add_code)
 
                 # Run Automation
                 for event_type, msg, data, type_source in main.process_messages(
-                    df, name_col, phone_col, email_col=email_col,
+                    df_subset, name_col, phone_col, email_col=email_col,
                     enable_wa=enable_wa, enable_email=enable_email,
                     custom_message=custom_msg, custom_link=custom_link,
                     email_subject=email_subject, email_body=email_body, smtp_settings=smtp_settings,
@@ -146,8 +169,10 @@ if uploaded_file is not None:
                         logs.append(f"[{type_source.upper()}] {msg}")
                         log_area.text("\n".join(logs[-10:])) # Show last 10 logs
                         
-                        # Update DataFrame
+                        # Update DataFrame (Original DF needs update based on index)
                         idx, col_name, status_val = data
+                        # Note: idx from yield is the original index because we sliced using iloc but preserved index? 
+                        # Pandas iloc slicing preserves index. Yes.
                         df.at[idx, col_name] = status_val
                         
                         current_op += 1
