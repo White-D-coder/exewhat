@@ -1,0 +1,22 @@
+# Gmail Setup Guide (Hindi/English)
+
+Agar aapko Email bhejna hai, to Google ka "App Password" chahiye hoga. Normal password kaam nahi karega.
+
+Ye steps follow karein:
+
+1.  Apne Google Account mein login karein.
+2.  Is link par jayein: https://myaccount.google.com/apppasswords
+    (Agar link nahi khul raha, to Google Account > Security > 2-Step Verification ON karein, fir search karein "App Passwords")
+3.  **"Select App"** mein "Other (Custom Name)" chunein.
+4.  Naam dalein: `WhatsAppBot` aur **Generate** click karein.
+5.  Aapko ek **16-digit code** milega (jaise: `abcd efgh ijkl mnop`).
+6.  Is code ko copy karein.
+
+Ab App mein wapis jayein aur ye details bharein:
+
+*   **SMTP Server**: `smtp.gmail.com`
+*   **SMTP Port**: `465`
+*   **Sender Email**: Aapka Gmail address (e.g. `example@gmail.com`)
+*   **App Password**: Woh 16-digit code jo abhi copy kiya (bina spaces ke bhi chalega).
+
+Bas ho gaya! Ab "Start Automation" dabayein.

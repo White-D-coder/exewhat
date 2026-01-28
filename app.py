@@ -23,7 +23,7 @@ if uploaded_file is not None:
         if 'Email_Status' not in df.columns:
             df['Email_Status'] = 'Pending'
         
-        st.subheader("Data Preview")
+        st.subheader("Original Data Preview")
         st.dataframe(df)
         
         # Stats
@@ -65,13 +65,41 @@ if uploaded_file is not None:
         with chk_c2:
             enable_email = st.checkbox("Send Email", value=False)
 
+        # Filter By Column Value
+        st.subheader("Filter Data by Value")
+        filter_col1, filter_col2 = st.columns(2)
+        with filter_col1:
+            enable_filter = st.checkbox("Enable Column Filter", value=False)
+        
+        if enable_filter:
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                filter_column = st.selectbox("Select Column to Filter", all_columns)
+            with f_col2:
+                # get unique values for suggestions if possible, else text
+                # Normalize to string and strip
+                unique_vals = sorted(df[filter_column].astype(str).apply(lambda x: x.strip()).unique().tolist())
+                filter_value = st.selectbox("Select Value to Keep", unique_vals)
+            
+            # Apply Filter (Robust String Matching)
+            df = df[df[filter_column].astype(str).apply(lambda x: x.strip()) == str(filter_value)]
+            
+            st.success(f"✅ Filter Applied: {len(df)} rows match '{filter_value}'.")
+            with st.expander("👀 View Filtered Data", expanded=True):
+                st.dataframe(df)
+            
+            if len(df) == 0:
+                st.error("⚠️ Warning: Your filter resulted in 0 rows! No messages will be sent.")
+
         # Row Selection
-        st.subheader("Filter Data")
+        st.subheader("Row Range Selection")
+        # Update total based on potentially filtered df
+        current_total = len(df)
         row_c1, row_c2 = st.columns(2)
         with row_c1:
-            start_index = st.number_input("Start Row (0-indexed)", min_value=0, max_value=total-1, value=0)
+            start_index = st.number_input("Start Row (0-indexed)", min_value=0, max_value=max(0, current_total-1), value=0)
         with row_c2:
-            end_index = st.number_input("End Row", min_value=1, max_value=total, value=total)
+            end_index = st.number_input("End Row", min_value=1, max_value=max(1, current_total), value=current_total)
             
         # Country Code
         country_code = st.text_input("Default Country Code (e.g., 91)", value="", help="Will be prefixed to phone numbers if not present.")
