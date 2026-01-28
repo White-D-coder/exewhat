@@ -165,9 +165,23 @@ if uploaded_file is not None:
 
         # Filter DataFrame based on selection
         df_subset = df.iloc[start_index:end_index].copy()
-        subset_pending = len(df_subset) # Just count rows for now, status check handles skipping
+        
+        st.divider()
+        st.subheader("🎯 Target Audience Preview")
+        
+        # Display who will get messages
+        t_rows = len(df_subset)
+        st.write(f"**You are about to message {t_rows} people.**")
+        
+        if t_rows > 0:
+            cols_to_show = [col for col in [name_col, phone_col, email_col] if col]
+            st.dataframe(df_subset[cols_to_show].head(5))
+            if t_rows > 5:
+                st.caption(f"...and {t_rows - 5} more.")
+        else:
+            st.warning("No users selected! Check your filter or row range.")
 
-        if st.button("🚀 Start Automation"):
+        if st.button("🚀 Start Automation", disabled=(t_rows == 0)):
             if enable_email and not (e_user and e_pass):
                 st.error("Please provide Email Credentials.")
             else:
