@@ -1,3 +1,6 @@
+import smtplib
+import ssl
+from email.message import EmailMessage
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -100,74 +103,130 @@ def send_whatsapp_message(driver, phone, message, min_delay=10, max_delay=20):
     except Exception as e:
         return False, f"Failed to send to {phone}: {str(e)}"
 
-def process_messages(df, name_col, phone_col, custom_message="", custom_link="", min_delay=10, max_delay=20, batch_size=0, batch_pause=0):
+def send_email(smtp_settings, recipient_email, subject, body):
+    """Sends an email using the provided SMTP settings."""
+    try:
+        msg = EmailMessage()
+        msg.set_content(body)
+        msg['Subject'] = subject
+        msg['From'] = smtp_settings['sender_email']
+        msg['To'] = recipient_email
+
+        context = ssl.create_default_context()
+        
+        with smtplib.SMTP_SSL(smtp_settings['server'], smtp_settings['port'], context=context) as smtp:
+            smtp.login(smtp_settings['sender_email'], smtp_settings['password'])
+            smtp.send_message(msg)
+        
+        return True, f"Email sent to {recipient_email}"
+    except Exception as e:
+        return False, f"Failed to send email to {recipient_email}: {str(e)}"
+
+def process_messages(df, name_col, phone_col, email_col=None, 
+                     enable_wa=True, enable_email=False,
+                     custom_message="", custom_link="", 
+                     email_subject="", email_body="", smtp_settings=None,
+                     min_delay=10, max_delay=20, batch_size=0, batch_pause=0):
     """
     Generator function that processes the DataFrame and yields status updates.
-    Yields: (index, status_text_for_log, status_value_for_df)
+    Yields: (index, status_text_for_log, status_value_for_df, type)
     """
-    yield "init", "Initializing Chrome Driver...", None
+    driver = None
     
-    try:
-        driver = initialize_driver()
-        
-        yield "login", "Opening WhatsApp Web. Please scan the QR code within 60 seconds...", None
-        driver.get("https://web.whatsapp.com")
-        
-        # Wait for login
+    if enable_wa:
+        yield "init", "Initializing Chrome Driver...", None, 'wa'
         try:
-            WebDriverWait(driver, WAIT_TIME_LOGIN).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "#pane-side"))
-            )
-            yield "info", "Login successful! Starting messaging...", None
-        except Exception:
-             yield "error", "Login timed out or failed. Please refresh and try again.", None
-             driver.quit()
-             return
-
-        messages_sent_in_batch = 0
-
-        for index, row in df.iterrows():
-            if str(row.get('Status', '')).lower() == 'sent':
-                continue
+            driver = initialize_driver()
+            yield "login", "Opening WhatsApp Web. Please scan the QR code within 60 seconds...", None, 'wa'
+            driver.get("https://web.whatsapp.com")
             
-            # Batch Pause Logic
-            if batch_size > 0 and messages_sent_in_batch >= batch_size:
-                yield "info", f"Batch limit reached. Pausing for {batch_pause} seconds for safety...", None
-                time.sleep(batch_pause)
-                messages_sent_in_batch = 0 # Reset batch counter
+            # Wait for login
+            try:
+                WebDriverWait(driver, WAIT_TIME_LOGIN).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#pane-side"))
+                )
+                yield "info", "WhatsApp Login successful!", None, 'wa'
+            except Exception:
+                yield "error", "WhatsApp Login timed out or failed.", None, 'wa'
+                driver.quit()
+                return
+        except Exception as e:
+            yield "error", f"Driver Init Failed: {e}", None, 'wa'
+            return
 
-            phone = str(row[phone_col]).strip()
+    yield "info", "Starting processing...", None, 'system'
+
+    try:
+        messages_sent_in_batch = 0
+        
+        for index, row in df.iterrows():
             name = str(row[name_col]) if name_col in row else 'User'
             
-            # Message Construction Logic
-            msg_content = ""
-            if 'Message' in row:
-                msg_content = str(row['Message'])
-                if msg_content == 'nan': msg_content = ''
-            
-            if not msg_content and custom_message:
-                msg_content = custom_message.replace('{Name}', name)
-            
-            if not msg_content:
-                msg_content = f"Hello {name}"
-                
-            if custom_link:
-                msg_content = f"{msg_content}\n\n{custom_link}"
-            
-            yield "progress", f"Sending to {name} ({phone})...", None
-            
-            success, log_msg = send_whatsapp_message(driver, phone, msg_content, min_delay, max_delay)
-            
-            status_val = 'Sent' if success else 'Failed'
-            yield "update", log_msg, (index, status_val)
+            # --- WhatsApp Processing ---
+            if enable_wa:
+                # check if already sent
+                if str(row.get('Status', '')).lower() != 'sent':
+                    
+                    if batch_size > 0 and messages_sent_in_batch >= batch_size:
+                        yield "info", f"Batch limit reached. Pausing for {batch_pause}s...", None, 'wa'
+                        time.sleep(batch_pause)
+                        messages_sent_in_batch = 0
 
-            if success:
-                messages_sent_in_batch += 1
-            
+                    phone = str(row[phone_col]).strip()
+                    
+                    # Message Construction
+                    msg_content = ""
+                    if 'Message' in row:
+                        msg_content = str(row['Message'])
+                        if msg_content == 'nan': msg_content = ''
+                    
+                    if not msg_content and custom_message:
+                        msg_content = custom_message.replace('{Name}', name)
+                    
+                    if not msg_content:
+                        msg_content = f"Hello {name}"
+                        
+                    if custom_link:
+                        msg_content = f"{msg_content}\n\n{custom_link}"
+                    
+                    yield "progress", f"WA: Sending to {name} ({phone})...", None, 'wa'
+                    
+                    success, log_msg = send_whatsapp_message(driver, phone, msg_content, min_delay, max_delay)
+                    
+                    status_val = 'Sent' if success else 'Failed'
+                    yield "update", log_msg, (index, 'Status', status_val), 'wa' # Added col name to tuple
+
+                    if success:
+                        messages_sent_in_batch += 1
+
+            # --- Email Processing ---
+            if enable_email and email_col and smtp_settings:
+                # check if already sent
+                if str(row.get('Email_Status', '')).lower() != 'sent':
+                    email_addr = str(row[email_col]).strip()
+                    
+                    if email_addr and email_addr != 'nan':
+                        # Email Body Construction
+                        e_body = email_body.replace('{Name}', name)
+                        e_subject = email_subject.replace('{Name}', name)
+                        
+                        yield "progress", f"Email: Sending to {name} ({email_addr})...", None, 'email'
+                        
+                        success, log_msg = send_email(smtp_settings, email_addr, e_subject, e_body)
+                        
+                        status_val = 'Sent' if success else 'Failed'
+                        yield "update", log_msg, (index, 'Email_Status', status_val), 'email'
+                        
+                        # Small delay between emails to be safe
+                        time.sleep(1) 
+                    else:
+                        yield "info", f"Skipping Email for {name} (No Email)", None, 'email'
+
+
     except Exception as e:
-        yield "error", f"Critical Error: {str(e)}", None
+        yield "error", f"Critical Error in Loop: {str(e)}", None, 'system'
     finally:
-        if 'driver' in locals():
+        if driver:
             driver.quit()
-        yield "done", "Automation finished. Browser closed.", None
+        yield "done", "Automation finished.", None, 'system'
 
