@@ -104,23 +104,38 @@ def send_whatsapp_message(driver, phone, message, min_delay=10, max_delay=20):
         return False, f"Failed to send to {phone}: {str(e)}"
 
 def send_email(smtp_settings, recipient_email, subject, body):
-    """Sends an email using the provided SMTP settings."""
+    """Sends an email using the provided SMTP settings with fallback."""
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg['Subject'] = subject
+    msg['From'] = smtp_settings['sender_email']
+    msg['To'] = recipient_email
+    
+    context = ssl.create_default_context()
+    
+    # Attempt 1: As configured (usually SSL 465)
     try:
-        msg = EmailMessage()
-        msg.set_content(body)
-        msg['Subject'] = subject
-        msg['From'] = smtp_settings['sender_email']
-        msg['To'] = recipient_email
-
-        context = ssl.create_default_context()
-        
         with smtplib.SMTP_SSL(smtp_settings['server'], smtp_settings['port'], context=context) as smtp:
             smtp.login(smtp_settings['sender_email'], smtp_settings['password'])
             smtp.send_message(msg)
-        
         return True, f"Email sent to {recipient_email}"
-    except Exception as e:
-        return False, f"Failed to send email to {recipient_email}: {str(e)}"
+        
+    except Exception as e_ssl:
+        # Attempt 2: Fallback to TLS 587 (Common for Gmail if SSL fails)
+        try:
+            # Only try fallback if original port was 465 (SSL)
+            if smtp_settings['port'] == 465:
+                print(f"SSL failed ({e_ssl}), retrying TLS on port 587...")
+                with smtplib.SMTP(smtp_settings['server'], 587) as smtp:
+                    smtp.starttls(context=context)
+                    smtp.login(smtp_settings['sender_email'], smtp_settings['password'])
+                    smtp.send_message(msg)
+                return True, f"Email sent to {recipient_email} (via TLS)"
+            else:
+                raise e_ssl # Re-raise if we weren't on 465
+                
+        except Exception as e_tls:
+             return False, f"Failed to send to {recipient_email}. SSL Error: {str(e_ssl)} | TLS Error: {str(e_tls)}"
 
 def process_messages(df, name_col, phone_col, email_col=None, 
                      enable_wa=True, enable_email=False,

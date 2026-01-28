@@ -122,7 +122,7 @@ if uploaded_file is not None:
                 st.caption("Appended to every WA message.")
 
         with tab2:
-            email_subject = st.text_input("Email Subject", value="Hello from Us!")
+            email_subject = st.text_input("Email Subject", value="Update Regarding Event Schedule – Tekron Fest.")
             email_body = st.text_area("Email Body", value="Hi {Name},\n\nWe would love to connect with you.")
             
             with st.expander("⚙️ Email SMTP Configuration", expanded=True):
