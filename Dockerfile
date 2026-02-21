@@ -1,34 +1,20 @@
 # Base image
-FROM python:3.9-slim
+FROM --platform=linux/amd64 python:3.9-slim
 
-# Install utilities and Chrome dependencies
-# We install busybox, curl, unzip, and libraries needed for Chrome
+# Install utilities and dependencies for Chrome
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     unzip \
     curl \
-    libgconf-2-4 \
-    libxss1 \
-    libnss3 \
-    libappindicator1 \
-    libindicator7 \
-    fonts-liberation \
-    libasound2 \
-    libnspr4 \
-    libx11-xcb1 \
-    libxtst6 \
-    xdg-utils \
-    libgbm1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Chrome
-# Note: We use a fixed version or latest stable. 
-# For simplicity in this template, we fetch the latest stable google-chrome-stable
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
+# Install Google Chrome
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get update \
-    && apt-get install -y google-chrome-stable
+    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
+    && rm google-chrome-stable_current_amd64.deb \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 WORKDIR /app
