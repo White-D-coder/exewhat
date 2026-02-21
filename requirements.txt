@@ -3,3 +3,5 @@ openpyxl
 selenium
 webdriver-manager
 streamlit
+fastapi
+uvicorn
